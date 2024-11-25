@@ -1,0 +1,33 @@
+# Deep Learning & GPU
+# tensorflow-gpu
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Face Detection
+facenet-pytorch
+opencv-python
+dlib
+
+# Data Processing
+numpy
+pandas
+scikit-learn
+pillow
+
+# Progress Bars & Utils
+tqdm
+matplotlib
+seaborn
+
+# Optional but recommended
+jupyterlab
+ipywidgets
+
+# Video Processing
+moviepy
+decord
+
+# Efficiency
+numba
+
+# Install django
