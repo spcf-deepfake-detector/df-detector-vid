@@ -26,7 +26,7 @@ conda init --all
 Create a new Conda environment named `dfdVid` with Python 3.10:
 
 ```sh
-conda create --name dfdVid python=3.10
+conda create --name dfdVid python=3.9.20
 ```
 
 ### 3. Activate the Conda Environment

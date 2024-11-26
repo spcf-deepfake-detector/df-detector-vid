@@ -11,6 +11,8 @@ from tqdm import tqdm
 from deepFakeDataSet_checkpoints import DeepFakeDetector
 from facenet_pytorch import MTCNN
 
+import matplotlib.pyplot as plt
+
 
 class ImprovedDeepFakeVideoPredictor:
     def __init__(self,
@@ -54,7 +56,7 @@ class ImprovedDeepFakeVideoPredictor:
             transforms.ToTensor(),
         ])
 
-    def preprocess_frame(self, frame: np.ndarray) -> Optional[torch.Tensor]:
+    def preprocess_frame(self, frame: np.ndarray) -> Optional[Tuple[torch.Tensor, np.ndarray]]:
         """
         Preprocess a single frame for inference, matching training preprocessing.
         """
@@ -70,7 +72,7 @@ class ImprovedDeepFakeVideoPredictor:
 
             # Normalize to [0, 1] range
             face_tensor = face_tensor.float() / 255.0
-            return face_tensor
+            return face_tensor, frame_rgb
         else:
             # Convert BGR to RGB
             frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -79,7 +81,7 @@ class ImprovedDeepFakeVideoPredictor:
             # Convert to tensor and normalize
             frame_tensor = torch.from_numpy(
                 frame_resized).float().permute(2, 0, 1) / 255.0
-            return frame_tensor
+            return frame_tensor, frame_rgb
 
     def predict_video(self,
                       video_path: str,
@@ -94,6 +96,7 @@ class ImprovedDeepFakeVideoPredictor:
         fake_probs = []
         valid_frames = 0
         total_frames = 0
+        processed_frames = []
 
         with tqdm(desc="Processing video") as pbar:
             while cap.isOpened():
@@ -102,7 +105,11 @@ class ImprovedDeepFakeVideoPredictor:
                     break
 
                 if total_frames % sample_rate == 0:
-                    processed_frame = self.preprocess_frame(frame)
+                    result = self.preprocess_frame(frame)
+                    if result is not None:
+                        processed_frame, frame_rgb = result
+                    else:
+                        processed_frame, frame_rgb = None, None
 
                     if processed_frame is not None:
                         processed_frame = processed_frame.unsqueeze(
@@ -120,6 +127,9 @@ class ImprovedDeepFakeVideoPredictor:
                             fake_probs.append(fake_prob)
                             valid_frames += 1
 
+                    # Collect the processed frame
+                    processed_frames.append(frame_rgb)
+
                 total_frames += 1
                 pbar.update(1)
 
@@ -129,7 +139,8 @@ class ImprovedDeepFakeVideoPredictor:
             return {
                 'error': 'No valid frames processed',
                 'prediction': 'UNKNOWN',
-                'confidence': 0.0
+                'confidence': 0.0,
+                'message': 'No faces detected in the video.'
             }
 
         # Calculate metrics
@@ -161,19 +172,51 @@ class ImprovedDeepFakeVideoPredictor:
             'std_fake': std_fake
         }
 
+        # self.visualize_frames(processed_frames)
+
         return results
+
+    def visualize_frames(self, frames: List[np.ndarray], grid_size: int = 4):
+        """
+        Visualize the processed frames using Matplotlib.
+        """
+        num_frames = len(frames)
+        num_plots = grid_size * grid_size
+
+        fig, axes = plt.subplots(grid_size, grid_size, figsize=(12, 8))
+        axes = axes.flatten()
+
+        for ax in axes:
+            ax.axis('off')
+
+        for i, frame in enumerate(frames):
+            ax = axes[i % num_plots]
+            ax.imshow(frame)
+            ax.axis('off')
+
+            if (i + 1) % num_plots == 0 or i == num_frames - 1:
+                plt.tight_layout()
+                # Use pause instead of show to keep the figure open
+                plt.pause(0.001)
+                if i != num_frames - 1:
+                    fig, axes = plt.subplots(
+                        grid_size, grid_size, figsize=(12, 8))
+                    axes = axes.flatten()
+                    for ax in axes:
+                        ax.axis('off')
 
 
 # Example usage
 if __name__ == "__main__":
     predictor = ImprovedDeepFakeVideoPredictor(
         model_path='training_output_2/checkpoints/best_model.pth',
-        use_face_detection=False
+        use_face_detection=True
     )
 
     # video_path = r"path/to/your/video.mp4"
     # List of video paths to process
     video_paths = [
+        r"C:\Users\aaron\Documents\df\Rope\Videos\13423369-uhd_3840_2160_24fps.mp4"
     ]
     for video_path in video_paths:
         results = predictor.predict_video(
@@ -183,13 +226,16 @@ if __name__ == "__main__":
         )
 
         print(f"Video: {video_path}")
-        print(f"\nVideo Analysis Results:")
-        print(f"Prediction: {results['prediction']}")
-        print(f"Confidence: {results['confidence']:.2%}")
-        print(f"Fake ratio: {results['fake_ratio']:.2%}")
-        print(
-            f"Valid frames: {results['valid_frames']} / {results['total_frames']}")
-        print('Average real probability:', results['avg_real_prob'])
-        print('Average fake probability:', results['avg_fake_prob'])
-        print('Real probability standard deviation:', results['std_real'])
-        print('Fake probability standard deviation:', results['std_fake'])
+        if 'message' in results:
+            print(results['message'])
+        else:
+            print(f"\nVideo Analysis Results:")
+            print(f"Prediction: {results['prediction']}")
+            print(f"Confidence: {results['confidence']:.2%}")
+            print(f"Fake ratio: {results['fake_ratio']:.2%}")
+            print(
+                f"Valid frames: {results['valid_frames']} / {results['total_frames']}")
+            print('Average real probability:', results['avg_real_prob'])
+            print('Average fake probability:', results['avg_fake_prob'])
+            print('Real probability standard deviation:', results['std_real'])
+            print('Fake probability standard deviation:', results['std_fake'])
