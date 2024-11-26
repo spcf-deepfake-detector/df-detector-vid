@@ -53,7 +53,7 @@ def evaluate_model(model, test_loader):
 
 if __name__ == "__main__":
     # Load the model
-    model_path = 'training_output/checkpoints/best_model.pth'
+    model_path = 'training_output_2/checkpoints/best_model.pth'
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 

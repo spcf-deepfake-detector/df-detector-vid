@@ -171,40 +171,9 @@ if __name__ == "__main__":
         use_face_detection=False
     )
 
-    # video_path = "path/to/your/video.mp4"
-    # video_path = r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_alex.mp4"
+    # video_path = r"path/to/your/video.mp4"
     # List of video paths to process
     video_paths = [
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\1110702_human_male_looking-at-camera_import6174f695850139280054171080p12000br_1728357844.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\1110702_human_male_looking-at-camera_import6174f695850139280054171080p12000br_1728359604.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\5997642_beach_sand_sea_h22f32a0cV02300854k25000br_1728358708.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\6013339_romantic_paradise_person_h4c11f82aV020124k25000br_1728358392.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\jose.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\paz.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\paz_0.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\paz_2.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\paz_ff.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker 4_1728357437.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_aaron.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_alex.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_alex_analyzed.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_charles.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_gab.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_gab_2.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_jose.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_paz.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_paz_2.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker_paz_2_analyzed.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter_parker_paz_ff.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\protects-the-city-from-the-weather_1728355826.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\quiana_1.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\quiana_2.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\quiana_3.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\quiana_4.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\quiana_5.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\quiana_6_ff.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\quiana_7_ff.mp4",
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\quiana_8_ff.mp4"
     ]
     for video_path in video_paths:
         results = predictor.predict_video(
