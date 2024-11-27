@@ -4,7 +4,7 @@ import torch
 from tqdm import tqdm
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from torch.utils.data import DataLoader
-from deepFakeDataSet_checkpoints import DeepFakeDataset, DeepFakeDetector
+from deepfake_data import DeepFakeDataset, DeepFakeDetector
 
 
 def evaluate_model(model, test_loader):

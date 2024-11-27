@@ -1,7 +1,7 @@
 from torchsummary import summary
 import torch
 from torchviz import make_dot
-from deepFakeDataSet_checkpoints import DeepFakeDetector
+from deepfake_data import DeepFakeDetector
 
 # Load the model
 
