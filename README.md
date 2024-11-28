@@ -53,6 +53,12 @@ Install the required Python packages using `pip`:
 pip install -r requirements.txt
 ```
 
+### 6. Install Model
+
+[Link](https://drive.google.com/file/d/1sRPxBUyenhNVFhzfh4pDOpH5sK-IK2IE/view?usp=sharing)
+
+Place the model in the models folder
+
 ## Additional Information
 
 - Ensure that your GPU drivers are up to date if you are using CUDA.

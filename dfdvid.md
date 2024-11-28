@@ -18,7 +18,7 @@ conda install conda-forge::cuda-runtime=12.4.1 conda-forge::cudnn=9.2.1.18
 3. Install the requirements
 
 pip
-(dfdVid) C:\Users\aaron\Documents\df\Detector\df-detector-vid>pip list
+(dfdVid) C:\Users\admin\Documents\df\Detector\df-detector-vid>pip list
 Package                      Version
 ---------------------------- --------------
 absl-py                      2.1.0
@@ -203,7 +203,7 @@ wrapt                        1.16.0
 zipp                         3.20.2
 
 conda
-# packages in environment at C:\Users\aaron\MiniConda3\envs\dfdVid:
+# packages in environment at C:\Users\admin\MiniConda3\envs\dfdVid:
 #
 # Name                    Version                   Build  Channel
 absl-py                   2.1.0                    pypi_0    pypi

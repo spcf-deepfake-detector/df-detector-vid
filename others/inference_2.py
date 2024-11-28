@@ -209,13 +209,12 @@ class ImprovedDeepFakeVideoPredictor:
 if __name__ == "__main__":
     predictor = ImprovedDeepFakeVideoPredictor(
         model_path='training_output_2/checkpoints/best_model.pth',
-        use_face_detection=True
+        use_face_detection=False
     )
 
     # video_path = r"path/to/your/video.mp4"
     # List of video paths to process
     video_paths = [
-        r"C:\Users\aaron\Documents\df\Rope\video_outputs\paz_ff.mp4"
     ]
     for video_path in video_paths:
         results = predictor.predict_video(

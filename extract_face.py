@@ -210,7 +210,7 @@ def extract_smooth_faces_from_video(
 
 if __name__ == "__main__":
     # Example usage
-    video_path = r"C:\Users\aaron\Documents\df\Rope\Videos\1110919_asian_looking-at-camera_outside_import617a3753ce4662386673051080p12000br.mp4"
+    video_path = r"C:\Users\admin\Documents\df\Rope\Videos\1110919_asian_looking-at-camera_outside_import617a3753ce4662386673051080p12000br.mp4"
     output_path = None  # Automatically generate output path
 
     extract_smooth_faces_from_video(

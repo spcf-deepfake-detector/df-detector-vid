@@ -407,8 +407,8 @@ def main(train_metadata_path, val_metadata_path, output_dir, resume_checkpoint=N
 if __name__ == "__main__":
     # Example usage:
     main(
-        train_metadata_path='C:\\Users\\aaron\\Documents\\df\\Detector\\df-detector-vid\\output\\train_metadata.csv',
-        val_metadata_path='C:\\Users\\aaron\\Documents\\df\\Detector\\df-detector-vid\\output\\val_metadata.csv',
+        train_metadata_path='',
+        val_metadata_path='',
         output_dir='training_output_2',
         # Set to checkpoint path to resume training
         resume_checkpoint='training_output_2/checkpoints/checkpoint_epoch_9.pth'

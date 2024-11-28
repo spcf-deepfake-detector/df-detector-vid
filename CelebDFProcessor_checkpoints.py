@@ -241,7 +241,7 @@ def main(base_path, output_path, resume=False):
 
 
 if __name__ == "__main__":
-    base_path = 'C:\\Users\\aaron\\Documents\\df\\Detector\\df-detector-vid\\Celeb-DF-v2-copy'
-    output_path = 'C:\\Users\\aaron\\Documents\\df\\Detector\\df-detector-vid\\output-2'
+    base_path = ''
+    output_path = ''
     # Set resume=True to continue from checkpoint
     main(base_path, output_path, resume=True)
