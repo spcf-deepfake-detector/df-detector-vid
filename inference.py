@@ -20,7 +20,8 @@ class ImprovedDeepFakeVideoPredictor:
                  use_face_detection: bool = True,
                  use_face_only: bool = True,
                  device: Optional[str] = None,
-                 batch_size: int = 32):
+                 batch_size: int = 32,
+                 visualize_frames_bool: bool = False):
         """
         Initialize the improved DeepFake video predictor with a trained model.
         """
@@ -40,6 +41,9 @@ class ImprovedDeepFakeVideoPredictor:
         self.batch_size = batch_size
         self.use_face_detection = use_face_detection
         self.use_face_only = use_face_only
+
+        # For visualization
+        self.visualize_frames_bool = visualize_frames_bool
 
         # Initialize MTCNN with parameters matching training
         if self.use_face_detection:
@@ -193,7 +197,8 @@ class ImprovedDeepFakeVideoPredictor:
         }
 
         # Visualize the face tensors
-        self.visualize_face_tensors(processed_tensors)
+        if self.visualize_frames_bool:
+            self.visualize_face_tensors(processed_tensors)
 
         return results
 
@@ -269,7 +274,8 @@ if __name__ == "__main__":
     predictor = ImprovedDeepFakeVideoPredictor(
         model_path='models/best_model.pth',
         use_face_detection=True,
-        use_face_only=False
+        use_face_only=False,
+        visualize_frames_bool=False,
     )
 
     # video_path = r"path/to/your/video.mp4"
@@ -281,7 +287,7 @@ if __name__ == "__main__":
         results = predictor.predict_video(
             video_path=video_path,
             sample_rate=2,
-            threshold=0.5
+            threshold=0.5,
         )
 
         print(f"Video: {video_path}")
