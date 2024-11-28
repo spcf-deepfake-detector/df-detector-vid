@@ -33,10 +33,10 @@ def evaluate_model():
         model.eval()
 
         # Step 2: Load the test dataset
-        test_metadata_path = 'output/metadata.csv'  # Path to the metadata file
+        test_metadata_path = 'output_test/test_metadata.csv'  # Path to the metadata file
         test_dataset = DeepFakeDataset(test_metadata_path)
-        test_loader = DataLoader(test_dataset, batch_size=32,
-                                 shuffle=False, num_workers=4)
+        test_loader = DataLoader(
+            test_dataset, batch_size=32, shuffle=False, num_workers=4)
 
         # Step 3: Make predictions
         predictions = []
@@ -125,6 +125,27 @@ def evaluate_model():
     plt.title('Receiver Operating Characteristic (ROC) Curve')
     plt.legend(loc='lower right')
     plt.savefig('evaluations/roc_curve.png')
+    plt.show()
+
+    # Plot and save evaluation metrics as a bar chart
+    metrics = {
+        'Accuracy': accuracy,
+        'Precision': precision,
+        'Recall': recall,
+        'F1 Score': f1,
+        'ROC AUC Score': roc_auc,
+        'Average Precision Score': avg_precision
+    }
+
+    plt.figure(figsize=(10, 6))
+    plt.bar(list(metrics.keys()), list(metrics.values()), color='skyblue')
+    plt.xlabel('Metrics')
+    plt.ylabel('Scores')
+    plt.title('Evaluation Metrics')
+    plt.ylim(0, 1)
+    for i, (metric, score) in enumerate(metrics.items()):
+        plt.text(i, score + 0.02, f'{score:.2f}', ha='center', va='bottom')
+    plt.savefig('evaluations/evaluation_metrics.png')
     plt.show()
 
 
