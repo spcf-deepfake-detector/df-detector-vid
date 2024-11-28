@@ -1,0 +1,8 @@
+
+    Accuracy: 0.9730524056633993
+    Precision: 0.9601890394666833
+    Recall: 0.8489636660486481
+    F1 Score: 0.9011573258136529
+    ROC AUC Score: 0.9215044025094066
+    Average Precision Score: 0.8370199859293428
+    

@@ -6,3 +6,9 @@
 /training_output
 /training_output_2
 /backend
+
+# Ignore all files that end with .pth
+*.pth
+
+# Ignore all pycache directories
+__pycache__/
