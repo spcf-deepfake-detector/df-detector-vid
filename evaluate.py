@@ -10,11 +10,11 @@ from tqdm import tqdm  # Import tqdm for progress bar
 import os
 
 
-def evaluate_model():
+def evaluate_model(evaluation_folder):
     # Create evaluations directory if it doesn't exist
-    os.makedirs('evaluations', exist_ok=True)
+    os.makedirs(evaluation_folder, exist_ok=True)
 
-    predictions_file = 'evaluations/predictions.csv'
+    predictions_file = os.path.join(evaluation_folder, 'predictions.csv')
 
     # Initialize variables
 
@@ -59,12 +59,9 @@ def evaluate_model():
         y_test = np.array(ground_truth)
         y_pred = np.array(predictions)
 
-        # Create evaluations directory if it doesn't exist
-        os.makedirs('evaluations', exist_ok=True)
-
         # Save predictions and ground truth to a CSV file
         df = pd.DataFrame({'GroundTruth': y_test, 'Prediction': y_pred})
-        df.to_csv('evaluations/predictions.csv', index=False)
+        df.to_csv(predictions_file, index=False)
 
     y_test = np.asarray(y_test)
     y_pred = np.asarray(y_pred)
@@ -87,13 +84,13 @@ def evaluate_model():
     Average Precision Score: {avg_precision}
     """
     print(metrics_output)
-    with open('evaluations/evaluation_metrics.txt', 'w') as f:
+    with open(os.path.join(evaluation_folder, 'evaluation_metrics.txt'), 'w') as f:
         f.write(metrics_output)
 
     # Print and save classification report
     class_report = classification_report(y_test, y_pred)
     print(class_report)
-    with open('evaluations/classification_report.txt', 'w') as f:
+    with open(os.path.join(evaluation_folder, 'classification_report.txt'), 'w') as f:
         f.write(class_report)  # type: ignore
 
     # Step 5: Plot and save confusion matrix and ROC curve (Visualize the results)
@@ -106,7 +103,7 @@ def evaluate_model():
     plt.xlabel('Predicted labels')
     plt.ylabel('True labels')
     plt.title('Confusion Matrix')
-    plt.savefig('evaluations/confusion_matrix.png')
+    plt.savefig(os.path.join(evaluation_folder, 'confusion_matrix.png'))
     plt.show()
 
     # Compute ROC curve
@@ -124,7 +121,7 @@ def evaluate_model():
     plt.ylabel('True Positive Rate')
     plt.title('Receiver Operating Characteristic (ROC) Curve')
     plt.legend(loc='lower right')
-    plt.savefig('evaluations/roc_curve.png')
+    plt.savefig(os.path.join(evaluation_folder, 'roc_curve.png'))
     plt.show()
 
     # Plot and save evaluation metrics as a bar chart
@@ -137,17 +134,22 @@ def evaluate_model():
         'Average Precision Score': avg_precision
     }
 
-    plt.figure(figsize=(10, 6))
-    plt.bar(list(metrics.keys()), list(metrics.values()), color='skyblue')
+    plt.figure(figsize=(12, 8))
+    bars = plt.bar(list(metrics.keys()), list(
+        metrics.values()), color='skyblue')
     plt.xlabel('Metrics')
     plt.ylabel('Scores')
     plt.title('Evaluation Metrics')
     plt.ylim(0, 1)
-    for i, (metric, score) in enumerate(metrics.items()):
-        plt.text(i, score + 0.02, f'{score:.2f}', ha='center', va='bottom')
-    plt.savefig('evaluations/evaluation_metrics.png')
+    plt.xticks(rotation=45, ha='right')
+    plt.tight_layout(pad=2.0)
+    for bar in bars:
+        yval = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2, yval + 0.02,
+                 f'{yval:.2f}', ha='center', va='bottom')
+    plt.savefig(os.path.join(evaluation_folder, 'evaluation_metrics.png'))
     plt.show()
 
 
 if __name__ == '__main__':
-    evaluate_model()
+    evaluate_model(evaluation_folder='evaluations')
