@@ -6,7 +6,7 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from torchvision import transforms
+from torchvision import transforms, models
 import os
 
 
@@ -110,55 +110,42 @@ class EarlyStopping:
 
 
 class DeepFakeDetector(nn.Module):
-    def __init__(self, dropout_rate=0.5):
+    def __init__(self, dropout_rate=0.5, pretrained=True):
         super(DeepFakeDetector, self).__init__()
 
-        # CNN Feature Extraction with increased regularization
-        self.features = nn.Sequential(
-            nn.Conv2d(3, 64, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(64),
-            nn.Dropout2d(0.2),  # Added dropout to conv layers
-            nn.MaxPool2d(2, 2),
+        # Load pretrained EfficientNet
+        self.features = models.efficientnet_v2_m(pretrained=pretrained)
 
-            nn.Conv2d(64, 128, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(128),
-            nn.Dropout2d(0.2),
-            nn.MaxPool2d(2, 2),
+        # Modify the last layer of EfficientNet to have a different number of features
+        num_features = self.features.classifier[1].in_features
 
-            nn.Conv2d(128, 256, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(256),
-            nn.Dropout2d(0.2),
-            nn.MaxPool2d(2, 2),
-
-            nn.Conv2d(256, 512, kernel_size=3, padding=1),
-            nn.ReLU(inplace=True),
-            nn.BatchNorm2d(512),
-            nn.Dropout2d(0.2),
-            nn.MaxPool2d(2, 2)
-        )
+        # Remove the original classifier
+        self.features.classifier = nn.Identity()  # type: ignore
 
         # Classification layers with increased regularization
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 8 * 8, 1024),
+            nn.Dropout(dropout_rate),
+            nn.Linear(num_features, 1024),
             nn.ReLU(inplace=True),
-            nn.BatchNorm1d(1024),  # Added batch norm
+            nn.BatchNorm1d(1024),
             nn.Dropout(dropout_rate),
 
             nn.Linear(1024, 512),
             nn.ReLU(inplace=True),
-            nn.BatchNorm1d(512),   # Added batch norm
+            nn.BatchNorm1d(512),
             nn.Dropout(dropout_rate),
 
-            nn.Linear(512, 256),   # Added additional layer
+            nn.Linear(512, 256),
             nn.ReLU(inplace=True),
-            nn.BatchNorm1d(256),   # Added batch norm
+            nn.BatchNorm1d(256),
             nn.Dropout(dropout_rate),
 
-            nn.Linear(256, 2)
+            nn.Linear(256, 2)  # Binary classification
         )
+
+        # Optional: Freeze base EfficientNet layers for initial training
+        for param in self.features.parameters():
+            param.requires_grad = False
 
         # Initialize weights
         self._initialize_weights()
@@ -184,6 +171,14 @@ class DeepFakeDetector(nn.Module):
         x = self.classifier(x)
         # Apply temperature scaling to logits
         return x / temperature
+
+    def unfreeze_backbone(self):
+        """
+        Unfreeze EfficientNet layers for fine-tuning
+        Call this after initial training to allow further refinement
+        """
+        for param in self.features.parameters():
+            param.requires_grad = True
 
 
 class Trainer:
@@ -269,7 +264,7 @@ class Trainer:
 
         return val_loss, 100. * correct / total
 
-    def train(self, num_epochs, resume_checkpoint=None, early_stopping_patience=5):
+    def train(self, num_epochs, resume_checkpoint=None, early_stopping_patience=5, unfreeze_epoch=None):
         start_epoch = 0
         if resume_checkpoint and os.path.exists(resume_checkpoint):
             start_epoch = self.load_checkpoint(resume_checkpoint)
@@ -321,6 +316,11 @@ class Trainer:
                 self.model.load_state_dict(torch.load(
                     os.path.join(self.checkpoint_dir, 'best_model.pth')))
                 break
+
+            # Unfreeze backbone at specified epoch
+            if unfreeze_epoch is not None and epoch == unfreeze_epoch:
+                print("\nUnfreezing EfficientNet backbone...")
+                self.model.unfreeze_backbone()
 
         return history
 
@@ -388,14 +388,14 @@ def main(train_metadata_path, val_metadata_path, output_dir, resume_checkpoint=N
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print(f"Using device: {device}")
 
-    model = DeepFakeDetector()
+    model = DeepFakeDetector(pretrained=True)
     trainer = Trainer(model, train_loader, val_loader, device,
                       checkpoint_dir=os.path.join(output_dir, 'checkpoints'))
 
     # Train the model
     history = trainer.train(num_epochs=30,
                             resume_checkpoint=resume_checkpoint,
-                            early_stopping_patience=5)
+                            early_stopping_patience=5, unfreeze_epoch=10)
 
     # Plot and save results
     plot_training_history(
@@ -407,9 +407,9 @@ def main(train_metadata_path, val_metadata_path, output_dir, resume_checkpoint=N
 if __name__ == "__main__":
     # Example usage:
     main(
-        train_metadata_path='',
-        val_metadata_path='',
+        train_metadata_path=r'',
+        val_metadata_path=r'',
         output_dir='training_output_2',
         # Set to checkpoint path to resume training
-        resume_checkpoint='training_output_2/checkpoints/checkpoint_epoch_9.pth'
+        # resume_checkpoint='training_output_2/checkpoints/checkpoint_epoch_9.pth'
     )
