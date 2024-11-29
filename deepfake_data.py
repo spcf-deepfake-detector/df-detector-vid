@@ -407,8 +407,13 @@ def main(train_metadata_path, val_metadata_path, output_dir, resume_checkpoint=N
 if __name__ == "__main__":
     # Example usage:
     main(
+<<<<<<< Updated upstream
         train_metadata_path='',
         val_metadata_path='',
+=======
+        train_metadata_path=r'C:\Users\aaron\Documents\df\Detector\df-detector-vid\output\balanced_train_metadata.csv',
+        val_metadata_path=r'C:\Users\aaron\Documents\df\Detector\df-detector-vid\output\balanced_val_metadata.csv',
+>>>>>>> Stashed changes
         output_dir='training_output_2',
         # Set to checkpoint path to resume training
         resume_checkpoint='training_output_2/checkpoints/checkpoint_epoch_9.pth'
