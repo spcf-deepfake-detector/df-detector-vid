@@ -4,8 +4,12 @@
 /output
 /output_test
 /output-2
+/output_test_1
+/output_no_face_test
 /training_output
 /training_output_2
+/training_output_no_face
+/output_no_face
 /backend
 
 # Ignore all files that end with .pth
