@@ -1,7 +1,6 @@
 import torch
 from torch import nn
 import numpy as np
-from PIL import Image
 import cv2
 from torchvision import transforms
 from typing import Union, List, Tuple, Dict, Optional
@@ -10,20 +9,18 @@ import os
 from tqdm import tqdm
 from deepfake_data import DeepFakeDetector
 from facenet_pytorch import MTCNN
-
 import matplotlib.pyplot as plt
 
 
-class ImprovedDeepFakeVideoPredictor:
+class ImprovedDeepFakePredictor:
     def __init__(self,
                  model_path: str,
                  use_face_detection: bool = True,
                  use_face_only: bool = True,
                  device: Optional[str] = None,
-                 batch_size: int = 32,
                  visualize_frames_bool: bool = False):
         """
-        Initialize the improved DeepFake video predictor with a trained model.
+        Initialize the improved DeepFake predictor with a trained model.
         """
         if device is None:
             self.device = torch.device(
@@ -38,7 +35,6 @@ class ImprovedDeepFakeVideoPredictor:
         self.model.to(self.device)
         self.model.eval()
 
-        self.batch_size = batch_size
         self.use_face_detection = use_face_detection
         self.use_face_only = use_face_only
 
@@ -64,9 +60,9 @@ class ImprovedDeepFakeVideoPredictor:
 
     def preprocess_frame(self, frame: np.ndarray) -> Optional[Tuple[Optional[torch.Tensor], np.ndarray]]:
         """
-        Preprocessing with reduced redundant operations
+        Preprocess a frame (from video or image) for deepfake detection.
         """
-        # Convert BGR to RGB only once
+        # Convert BGR to RGB
         frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         if self.use_face_detection:
@@ -107,20 +103,96 @@ class ImprovedDeepFakeVideoPredictor:
                 frame_resized).permute(2, 0, 1).float() / 255.0
             return frame_tensor, frame_rgb
 
-    def predict_video(self,
-                      video_path: str,
-                      sample_rate: int = 1,
-                      threshold: float = 0.5,
-                      temperature: float = 2.0) -> Dict:
+    def predict_image(self, image_path: str, threshold: float = 0.5, temperature: float = 2.0) -> Dict:
         """
-        Predict whether a video is real or fake using improved processing.
+        Predict whether an image is real or fake.
+        """
+        # Load the image
+        if not os.path.exists(image_path):
+            return {
+                'error': 'File not found',
+                'prediction': 'UNKNOWN',
+                'confidence': 0.0,
+                'message': f'Image file not found: {image_path}'
+            }
+
+        frame = cv2.imread(image_path)
+        if frame is None:
+            return {
+                'error': 'Invalid image',
+                'prediction': 'UNKNOWN',
+                'confidence': 0.0,
+                'message': f'Could not read image: {image_path}'
+            }
+
+        # Preprocess the image
+        result = self.preprocess_frame(frame)
+        if result is None:
+            return {
+                'error': 'No valid image processed',
+                'prediction': 'UNKNOWN',
+                'confidence': 0.0,
+                'message': 'No faces detected in the image.'
+            }
+
+        processed_tensor, frame_rgb = result
+        if processed_tensor is None:
+            return {
+                'error': 'No valid image processed',
+                'prediction': 'UNKNOWN',
+                'confidence': 0.0,
+                'message': 'No faces detected in the image.'
+            }
+
+        # Perform inference
+        processed_tensor = processed_tensor.unsqueeze(0).to(self.device)
+        with torch.no_grad():
+            output = self.model(processed_tensor, temperature=temperature)
+            probabilities = torch.softmax(output, dim=1)
+
+            # Index 0 is fake (0), index 1 is real (1)
+            fake_prob = probabilities[0][0].item()
+            real_prob = probabilities[0][1].item()
+
+        # Determine prediction based on real probability threshold
+        if real_prob > threshold:
+            prediction = 'REAL'
+            confidence = real_prob
+        else:
+            prediction = 'FAKE'
+            confidence = fake_prob
+
+        results = {
+            'prediction': prediction,
+            'confidence': confidence,
+            'fake_ratio': fake_prob,
+            'real_prob': real_prob,
+        }
+
+        # Visualize heatmap for the image
+        if self.visualize_frames_bool:
+            self.visualize_heatmap(processed_tensor.squeeze(0), self.model)
+
+        return results
+
+    def predict_video(self, video_path: str, sample_rate: int = 1, threshold: float = 0.5, temperature: float = 2.0) -> Dict:
+        """
+        Predict whether a video is real or fake.
         """
         cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            return {
+                'error': 'Invalid video',
+                'prediction': 'UNKNOWN',
+                'confidence': 0.0,
+                'message': f'Could not open video: {video_path}'
+            }
+
         real_probs = []
         fake_probs = []
         valid_frames = 0
         total_frames = 0
-        processed_tensors = []  # Collect the tensors
+        last_frame_tensor = None  # Store the last frame tensor for heatmap
 
         with tqdm(desc="Processing video") as pbar:
             while cap.isOpened():
@@ -145,14 +217,15 @@ class ImprovedDeepFakeVideoPredictor:
                                 processed_tensor, temperature=temperature)
                             probabilities = torch.softmax(output, dim=1)
 
-                            real_prob = probabilities[0][0].item()
-                            fake_prob = probabilities[0][1].item()
+                            # Index 0 is fake (0), index 1 is real (1)
+                            fake_prob = probabilities[0][0].item()
+                            real_prob = probabilities[0][1].item()
                             real_probs.append(real_prob)
                             fake_probs.append(fake_prob)
                             valid_frames += 1
 
-                        # Collect the processed tensor
-                        processed_tensors.append(processed_tensor)
+                        # Store the last frame tensor for heatmap
+                        last_frame_tensor = processed_tensor
 
                 total_frames += 1
                 pbar.update(1)
@@ -173,13 +246,13 @@ class ImprovedDeepFakeVideoPredictor:
         std_real = np.std(real_probs)
         std_fake = np.std(fake_probs)
 
-        # More nuanced prediction logic
-        if avg_fake_prob > threshold:
-            prediction = 'FAKE'
-            confidence = avg_fake_prob
-        else:
+        # Prediction logic based on real probability
+        if avg_real_prob > threshold:
             prediction = 'REAL'
             confidence = avg_real_prob
+        else:
+            prediction = 'FAKE'
+            confidence = avg_fake_prob
 
         # Adjust confidence based on prediction consistency
         confidence = confidence * (1 - (std_real + std_fake) / 2)
@@ -196,111 +269,108 @@ class ImprovedDeepFakeVideoPredictor:
             'std_fake': std_fake,
         }
 
-        # Visualize the face tensors
-        if self.visualize_frames_bool:
-            self.visualize_face_tensors(processed_tensors)
+        # Visualize heatmap for the last frame
+        if last_frame_tensor is not None and self.visualize_frames_bool:
+            self.visualize_heatmap(last_frame_tensor.squeeze(0), self.model)
 
         return results
 
-    def visualize_face_tensors(self, face_tensors: List[Union[torch.Tensor, np.ndarray]], grid_size: int = 4):
+    def visualize_heatmap(self, face_tensor: torch.Tensor, model: nn.Module, save_path: Optional[str] = None):
         """
-        Visualize the processed face tensors using Matplotlib.
+        Generate a class activation heatmap to show which regions contribute most to the prediction.
         """
-        num_faces = len(face_tensors)
-        num_plots = grid_size * grid_size
+        # Ensure the model is in evaluation mode
+        model.eval()
 
-        fig, axes = plt.subplots(grid_size, grid_size, figsize=(12, 8))
-        axes = axes.flatten()
+        # Hook into the last convolutional layer
+        # Assuming the last conv layer is used
+        target_layer = model.features[-1]
+        activations = None
+        gradients = None
 
-        for ax in axes:
-            ax.axis('off')
+        def hook_fn(module, input, output):
+            nonlocal activations
+            activations = output
 
-        for i, face_tensor in enumerate(face_tensors):
-            ax = axes[i % num_plots]
-            if isinstance(face_tensor, torch.Tensor):
-                # Ensure the tensor has the correct number of dimensions
-                face_rgb = face_tensor.squeeze(
-                    0).permute(1, 2, 0).cpu().numpy()
-                # Convert from [0, 1] range to [0, 255] range for visualization
-                face_rgb = (face_rgb * 255).astype(np.uint8)
-            else:
-                face_rgb = face_tensor
-            ax.imshow(face_rgb)
-            ax.axis('off')
+        def backward_hook_fn(module, grad_input, grad_output):
+            nonlocal gradients
+            gradients = grad_output[0]
 
-            if (i + 1) % num_plots == 0 or i == num_faces - 1:
-                plt.tight_layout()
-                # Use pause instead of show to keep the figure open
-                plt.pause(0.001)
-                if i != num_faces - 1:
-                    fig, axes = plt.subplots(
-                        grid_size, grid_size, figsize=(12, 8))
-                    axes = axes.flatten()
-                    for ax in axes:
-                        ax.axis('off')
+        # Register hooks
+        hook = target_layer.register_forward_hook(hook_fn)
+        backward_hook = target_layer.register_backward_hook(backward_hook_fn)
 
-    def visualize_frames(self, frames: List[np.ndarray], grid_size: int = 4):
-        """
-        Visualize the processed frames using Matplotlib.
-        """
-        num_frames = len(frames)
-        num_plots = grid_size * grid_size
+        # Forward pass
+        outputs = model(face_tensor.unsqueeze(0))
+        prediction = torch.argmax(outputs, dim=1)
 
-        fig, axes = plt.subplots(grid_size, grid_size, figsize=(12, 8))
-        axes = axes.flatten()
+        # Backward pass
+        model.zero_grad()
+        outputs[0, prediction].backward()
 
-        for ax in axes:
-            ax.axis('off')
+        # Remove hooks
+        hook.remove()
+        backward_hook.remove()
 
-        for i, frame in enumerate(frames):
-            ax = axes[i % num_plots]
-            ax.imshow(frame)
-            ax.axis('off')
+        # Compute Grad-CAM
+        if activations is not None and gradients is not None:
+            pooled_gradients = torch.mean(gradients, dim=[0, 2, 3])
+            for i in range(activations.size(1)):
+                activations[:, i, :, :] *= pooled_gradients[i]
 
-            if (i + 1) % num_plots == 0 or i == num_frames - 1:
-                plt.tight_layout()
-                # Use pause instead of show to keep the figure open
-                plt.pause(0.001)
-                if i != num_frames - 1:
-                    fig, axes = plt.subplots(
-                        grid_size, grid_size, figsize=(12, 8))
-                    axes = axes.flatten()
-                    for ax in axes:
-                        ax.axis('off')
+            heatmap = torch.mean(
+                activations, dim=1).squeeze().detach().cpu().numpy()
+            heatmap = np.maximum(heatmap, 0)  # ReLU
+            heatmap = (heatmap - heatmap.min()) / \
+                (heatmap.max() - heatmap.min())  # Normalize
+            # Resize to match input size
+            heatmap = cv2.resize(heatmap, (128, 128))
+            heatmap = np.uint8(255 * heatmap)  # Convert to 8-bit
+            heatmap = cv2.applyColorMap(
+                heatmap, cv2.COLORMAP_JET)  # Apply colormap
+
+            # Overlay heatmap on original image
+            original_img = (face_tensor.permute(
+                1, 2, 0).cpu().numpy() * 255).astype(np.uint8)
+            output_img = cv2.addWeighted(original_img, 0.6, heatmap, 0.4, 0)
+
+            # Plot results
+            plt.figure(figsize=(10, 5))
+            plt.subplot(1, 3, 1)
+            plt.title('Original Image')
+            plt.imshow(original_img)
+            plt.axis('off')
+
+            plt.subplot(1, 3, 2)
+            plt.title('Activation Heatmap')
+            plt.imshow(heatmap)
+            plt.axis('off')
+
+            plt.subplot(1, 3, 3)
+            plt.title('Overlaid Heatmap')
+            plt.imshow(cv2.cvtColor(output_img, cv2.COLOR_BGR2RGB))
+            plt.axis('off')
+
+            if save_path:
+                plt.savefig(save_path)
+            plt.show()
 
 
 # Example usage
 if __name__ == "__main__":
-    predictor = ImprovedDeepFakeVideoPredictor(
-        model_path='models/best_model.pth',
+    predictor = ImprovedDeepFakePredictor(
+        model_path='training_output_test_1/checkpoints/best_model.pth',
         use_face_detection=True,
-        use_face_only=False,
-        visualize_frames_bool=False,
+        use_face_only=True,
+        visualize_frames_bool=True,
     )
 
-    # video_path = r"path/to/your/video.mp4"
-    # List of video paths to process
-    video_paths = [
-        r"path/to/your/video.mp4"
-    ]
-    for video_path in video_paths:
-        results = predictor.predict_video(
-            video_path=video_path,
-            sample_rate=2,
-            threshold=0.5,
-        )
+    # Predict for an image
+    image_path = r"C:\Users\aaron\Pictures\Screenshots\Screenshot 2024-10-16 111550.png"
+    image_results = predictor.predict_image(image_path)
+    print("Image Results:", image_results)
 
-        print(f"Video: {video_path}")
-        if 'message' in results:
-            print(results['message'])
-        else:
-            print(f"\nVideo Analysis Results:")
-            print(f"Prediction: {results['prediction']}")
-            print(f"Confidence: {results['confidence']:.2%}")
-            print(f"Fake ratio: {results['fake_ratio']:.2%}")
-            print(
-                f"Valid frames: {results['valid_frames']} / {results['total_frames']}")
-            print('Average real probability:', results['avg_real_prob'])
-            print('Average fake probability:', results['avg_fake_prob'])
-            print('Real probability standard deviation:', results['std_real'])
-            print('Fake probability standard deviation:', results['std_fake'])
+    # Predict for a video
+    # video_path = r"C:\Users\aaron\Documents\df\Rope\video_outputs\peter parker 4_1728357437.mp4"
+    # video_results = predictor.predict_video(video_path)
+    # print("Video Results:", video_results)
