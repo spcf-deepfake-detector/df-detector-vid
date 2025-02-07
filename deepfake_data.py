@@ -8,24 +8,43 @@ from tqdm import tqdm
 import matplotlib.pyplot as plt
 from torchvision import transforms
 import os
+from PIL import Image
 
 
 class DeepFakeDataset(Dataset):
-    def __init__(self, metadata_path, transform=None):
+    def __init__(self, metadata_path, dataset_type='npy', transform=None):
         """
-        Initialize dataset from metadata CSV file
+        Initialize dataset from metadata CSV file.
+
         Args:
-            metadata_path: Path to metadata CSV file (can be metadata.csv, train_metadata.csv, or val_metadata.csv)
-            transform: Optional transforms to apply
+            metadata_path (str): Path to metadata CSV file.
+            dataset_type (str): Type of dataset ('npy' or 'image').
+            transform (callable, optional): Optional transforms to apply.
         """
         self.metadata_df = pd.read_csv(metadata_path)
-        self.transform = transform
+        self.dataset_type = dataset_type
+
+        # Define default transform if none provided
+        if transform is None:
+            self.transform = transforms.Compose([
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                                     std=[0.229, 0.224, 0.225])  # ImageNet normalization
+            ])
+        else:
+            # Ensure ToTensor is included in custom transforms
+            if not any(isinstance(t, transforms.ToTensor) for t in transform.transforms):
+                transform_list = [transforms.ToTensor()] + \
+                    list(transform.transforms)
+                self.transform = transforms.Compose(transform_list)
+            else:
+                self.transform = transform
 
         # Verify all frame files exist
         self._verify_frames()
 
     def _verify_frames(self):
-        """Verify all frame files exist and remove missing entries"""
+        """Verify all frame files exist and remove missing entries."""
         valid_frames = []
         for idx, row in tqdm(self.metadata_df.iterrows(), desc="Verifying frames", total=len(self.metadata_df)):
             if os.path.exists(row['frame_path']):
@@ -42,31 +61,39 @@ class DeepFakeDataset(Dataset):
 
     def __getitem__(self, idx):
         row = self.metadata_df.iloc[idx]
+        file_path = row['frame_path']
 
         try:
-            # Load face array from .npy file
-            face = np.load(row['frame_path'])
+            if self.dataset_type == 'npy':
+                # Load face array from .npy file
+                face = np.load(file_path, allow_pickle=True)
+                face = torch.from_numpy(face).float()
+                face = face.permute(2, 0, 1)  # Change from HWC to CHW format
+                face = face / 255.0  # Normalize to [0, 1]
 
-            # Convert to torch tensor and normalize
-            face = torch.from_numpy(face).float()
-            face = face.permute(2, 0, 1)  # Change from HWC to CHW format
-            face = face / 255.0  # Normalize to [0, 1]
-
-            if self.transform:
+            else:  # dataset_type == 'image'
+                # Load and convert image to tensor
+                face = Image.open(file_path).convert('RGB')
+                # This will convert to tensor and normalize
                 face = self.transform(face)
 
             label = torch.tensor(row['label'], dtype=torch.long)
-
             return face, label
 
         except Exception as e:
-            print(f"Error loading frame {row['frame_path']}: {str(e)}")
-            # Return a default item
-            return torch.zeros((3, 128, 128)), torch.tensor(0)
+            print(f"Error loading frame {file_path}: {str(e)}")
+            # Return a default tensor with the same normalization as our transform
+            default_tensor = torch.zeros((3, 128, 128))
+            if self.dataset_type == 'image':
+                default_tensor = transforms.Normalize(
+                    mean=[0.485, 0.456, 0.406],
+                    std=[0.229, 0.224, 0.225]
+                )(default_tensor)
+            return default_tensor, torch.tensor(0)
 
 
 class EarlyStopping:
-    def __init__(self, patience=5, min_delta=0, mode='min'):
+    def __init__(self, patience=10, min_delta=0, mode='min'):
         """
         Initialize early stopping object
         Args:
@@ -140,6 +167,17 @@ class DeepFakeDetector(nn.Module):
             nn.MaxPool2d(2, 2)
         )
 
+        # Add a new method for feature extraction
+        self.feature_layers = nn.ModuleList([
+            self.features[0],   # First convolutional layer
+            self.features[3],   # First max pooling layer
+            self.features[6],   # Second convolutional layer
+            self.features[9],   # Second max pooling layer
+            self.features[12],  # Third convolutional layer
+            self.features[15],  # Third max pooling layer
+            self.features[18]   # Fourth convolutional layer
+        ])
+
         # Classification layers with increased regularization
         self.classifier = nn.Sequential(
             nn.Linear(512 * 8 * 8, 1024),
@@ -162,6 +200,38 @@ class DeepFakeDetector(nn.Module):
 
         # Initialize weights
         self._initialize_weights()
+
+    def extract_features(self, x):
+        """
+        Extract feature maps for visualization
+        """
+        feature_maps = []
+        for layer in self.feature_layers:
+            x = layer(x)
+            feature_maps.append(x)
+        return feature_maps
+
+    def visualize_feature_maps(self, x, save_path=None):
+        """
+        Generate and save feature map visualizations
+        """
+        feature_maps = self.extract_features(x)
+
+        # Plot feature maps
+        plt.figure(figsize=(15, 10))
+        for i, feature_map in enumerate(feature_maps):
+            # Take first channel for visualization
+            fm = feature_map[0, 0].detach().cpu().numpy()
+
+            plt.subplot(2, 4, i+1)
+            plt.title(f'Feature Map {i+1}')
+            plt.imshow(fm, cmap='viridis')
+            plt.axis('off')
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path)
+        plt.show()
 
     def _initialize_weights(self):
         for m in self.modules():
@@ -351,22 +421,41 @@ def plot_training_history(history, save_path=None):
     plt.show()
 
 
-def main(train_metadata_path, val_metadata_path, output_dir, resume_checkpoint=None):
+def main(train_metadata_path, val_metadata_path, dataset_type, output_dir, resume_checkpoint=None):
     # Create output directory
     os.makedirs(output_dir, exist_ok=True)
 
-    # Set up transforms
-    transform = transforms.Compose([
+   # Set up transforms for training data
+    train_transform = transforms.Compose([
+        transforms.ToTensor(),
         transforms.RandomHorizontalFlip(),
         transforms.RandomRotation(10),
-        transforms.ColorJitter(brightness=0.2, contrast=0.2)
+        transforms.ColorJitter(brightness=0.2, contrast=0.2),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
+    ])
+
+    # Set up transforms for validation data (no augmentation)
+    val_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                             std=[0.229, 0.224, 0.225])
     ])
 
     # Create datasets
     print("Loading training dataset...")
-    train_dataset = DeepFakeDataset(train_metadata_path, transform=transform)
+    train_dataset = DeepFakeDataset(
+        train_metadata_path,
+        dataset_type=dataset_type,
+        transform=train_transform
+    )
+
     print("Loading validation dataset...")
-    val_dataset = DeepFakeDataset(val_metadata_path)
+    val_dataset = DeepFakeDataset(
+        val_metadata_path,
+        dataset_type=dataset_type,
+        transform=val_transform
+    )
 
     # Create dataloaders
     train_loader = DataLoader(
@@ -407,14 +496,10 @@ def main(train_metadata_path, val_metadata_path, output_dir, resume_checkpoint=N
 if __name__ == "__main__":
     # Example usage:
     main(
-<<<<<<< Updated upstream
-        train_metadata_path='',
-        val_metadata_path='',
-=======
-        train_metadata_path=r'C:\Users\aaron\Documents\df\Detector\df-detector-vid\output\balanced_train_metadata.csv',
-        val_metadata_path=r'C:\Users\aaron\Documents\df\Detector\df-detector-vid\output\balanced_val_metadata.csv',
->>>>>>> Stashed changes
-        output_dir='training_output_2',
+        train_metadata_path=r'C:\Users\aaron\Documents\df\Detector\df-detector-vid\output_test_1_image\train_metadata.csv',
+        val_metadata_path=r'C:\Users\aaron\Documents\df\Detector\df-detector-vid\output_test_1_image\val_metadata.csv',
+        dataset_type='image',
+        output_dir='training_output_test_1_image',
         # Set to checkpoint path to resume training
-        resume_checkpoint='training_output_2/checkpoints/checkpoint_epoch_9.pth'
+        # resume_checkpoint='training_output_test_1/checkpoints/checkpoint_epoch_7.pth'
     )

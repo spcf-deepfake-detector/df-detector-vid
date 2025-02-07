@@ -8,7 +8,7 @@ def check_dataset_balance(metadata_path):
     df = pd.read_csv(metadata_path)
     real_count = df[df['label'] == 1].shape[0]
     fake_count = df[df['label'] == 0].shape[0]
-    print(f"Real videos: {real_count}, Fake videos: {fake_count}")
+    print(f"Real video frames: {real_count}, Fake video frames: {fake_count}")
 
 
 def balance_dataset(metadata_path, output_path, method='oversample'):
@@ -49,14 +49,14 @@ def split_dataset(metadata_path, train_output_path, val_output_path, val_size=0.
     print(f"Validation dataset saved to {val_output_path}")
 
 
-check_dataset_balance('output/balanced_metadata.csv')
-check_dataset_balance('output/balanced_train_metadata.csv')
-check_dataset_balance('output/balanced_val_metadata.csv')
+# check_dataset_balance('output_test_1/balanced_metadata.csv')
+# check_dataset_balance('output/balanced_train_metadata.csv')
+# check_dataset_balance('output/balanced_val_metadata.csv')
 
-# balance_dataset('output/metadata.csv',
-#                 'output/balanced_metadata.csv', method='oversample')
+# balance_dataset('output_test_1/metadata.csv',
+#                 'output_test_1/balanced_metadata.csv', method='oversample')
 
 # check_dataset_balance('output/balanced_metadata.csv')
 
-# split_dataset('output/balanced_metadata.csv',
-#               'output/balanced_train_metadata.csv', 'output/balanced_val_metadata.csv', val_size=0.2)
+split_dataset('output_test_1/balanced_metadata.csv',
+              'output_test_1/balanced_train_metadata.csv', 'output_test_1/balanced_val_metadata.csv', val_size=0.2)
